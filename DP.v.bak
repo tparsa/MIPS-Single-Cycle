@@ -1,0 +1,59 @@
+`timescale 1ns/1ns
+module DP(input rst, clk, memToReg, memRead, memWrite, writeReg, aluSrc, pcSrc, branchPcSrc,
+                  input [2: 0] aluOp, input[1: 0] inWindow, output [15: 0] outInstruction, output zero);
+  
+  wire [15: 0] outBranchMux, outPC, outMemToReg, outReg1, outReg2, outAluSrc1, outAluSrc2q, outAluSrc, outAlu, outMem, outPCSrc;
+  
+  PC pc(.clk(clk),
+      .rst(rst),
+      .inPC(outBranchMux),
+      .outPC(outPC));
+      
+  InstructionMem im(outPC, outInstruction, rst);   
+  
+  wire [1: 0] ri, rj;
+  assign ri = outInstruction[11: 10];
+  assign rj = outInstruction[9: 8];
+
+  
+  RegFile rf(.readWriteReg(ri),
+            .readReg(rj),
+            .activeWnd(inWindow),
+            .writeData(outMemToReg),
+            .writeReg(writeReg),
+            .clk(clk),
+            .rst(rst),
+            .readData1(outReg1),
+            .readData2(outReg2));
+  
+  
+  
+  ALU alu(.a(outAluSrc1),
+          .b(outAluSrc2),
+          .aluOperation(aluOp),
+          .aluResult(outAlu),
+          .zero(zero));
+  
+  wire [9: 0] adr10;
+  assign adr10 = outInstruction[9: 0];
+  
+  DataMemory dm(.address(adr10),
+             .writeData(outReg1),
+             .clk(clk),
+             .rst(rst),
+             .memRead(memRead),
+             .memWrite(memWrite),
+             .readData(outMem));
+  
+  wire [7: 0] adr8;
+  assign adr8 = outInstruction[7: 0];
+  
+  assign outMemToReg = memToReg ? outMem : outAlu;
+  assign outPCSrc = pcSrc ? {6'b0, adr10} : outPC + 1;
+  assign outBranchMux = branchPcSrc ? {outPC[15: 8], adr8} : outPCSrc;
+  assign outAluSrc2 = aluSrc ? adr8 : outReg2;
+  assign outAluSrc1  = aluSrc ? outReg2 : outReg1;
+  
+  
+            
+endmodule
